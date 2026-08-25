@@ -12,9 +12,16 @@ set -euo pipefail
 DOMAIN="api.pansos.cn"
 
 echo "==> 查找 server_name=$DOMAIN 的 Nginx server 配置..."
-# 注意: 排除我们自己的片段文件, 避免误匹配
-TARGET=$(grep -rl "server_name[[:space:]].*${DOMAIN}" /etc/nginx/ 2>/dev/null \
-          | grep -v "sub2-gallery" | head -1 || true)
+# 优先 sites-enabled 下的活跃软链接 (nginx 实际加载); 兜底 sites-available 排除备份/临时后缀
+TARGET=$(grep -rl "server_name[[:space:]].*${DOMAIN}" /etc/nginx/sites-enabled/ 2>/dev/null | head -1 || true)
+if [ -z "$TARGET" ]; then
+  TARGET=$(grep -rl "server_name[[:space:]].*${DOMAIN}" /etc/nginx/sites-available/ 2>/dev/null \
+            | grep -vE '\.(bak|old|swp|save|tmp|dist)([0-9]*)$' | head -1 || true)
+fi
+if [ -z "$TARGET" ]; then
+  TARGET=$(grep -rl "server_name[[:space:]].*${DOMAIN}" /etc/nginx/ 2>/dev/null \
+            | grep -vE '\.(bak|old|swp|save|tmp|dist)([0-9]*)$' | grep -v "sub2-gallery" | head -1 || true)
+fi
 
 if [ -z "$TARGET" ]; then
   echo "❌ 未找到 server_name $DOMAIN 的 server 块。"
