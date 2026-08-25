@@ -2,9 +2,12 @@
 # ============================================================
 # 外层 Nginx 反代 一键注入脚本 (需 root)
 # 作用: 把画廊容器(127.0.0.1:3000)挂载到 api.pansos.cn 的
-#       /gallery/  /assets/  /api-proxy/ 三个路径
+#       /gallery/  /api-proxy/ 两个路径
 # 原理: 自动找到 server_name=api.pansos.cn 的 server 块,
-#       在该块内注入 3 段 location (先备份原配置, 幂等可重复执行)
+#       在该块内注入 2 段 location (先备份原配置, 幂等可重复执行)
+# 重要: 绝不代理 /assets/ —— 画廊以相对路径(base './')构建,
+#        其资源落在 /gallery/assets/ 下, 由 location /gallery/ 统一处理;
+#        若对外代理 /assets/ 会与 sub2api 前端资源(/assets/)冲突 → 页面空白。
 # 运行: sudo bash setup-nginx.sh
 # ============================================================
 set -euo pipefail
@@ -35,7 +38,7 @@ fi
 
 if [ -z "$TARGET" ]; then
   echo "❌ 未找到 server_name $DOMAIN 的 server 块。"
-  echo "   请手动把下面 3 段 location 加进该 server 块内部, 然后 nginx -s reload:"
+  echo "   请手动把下面 2 段 location 加进该 server 块内部, 然后 nginx -s reload:"
   cat <<'MANUAL'
     location /gallery/ {
         proxy_pass http://127.0.0.1:3000/;
@@ -43,10 +46,6 @@ if [ -z "$TARGET" ]; then
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    location /assets/ {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
     }
     location /api-proxy/ {
         proxy_pass http://127.0.0.1:3000;
@@ -66,7 +65,7 @@ fi
 echo "    找到: $TARGET"
 
 # 幂等: 已注入过就跳过, 直接校验重载
-if grep -q "sub2-image-gallery" "$TARGET"; then
+if grep -q "sub2-image-v2" "$TARGET"; then
   echo "✅ 反代片段已存在, 跳过注入, 直接校验重载。"
   nginx -t && nginx -s reload
   echo "✅ 完成: https://$DOMAIN/gallery/"
@@ -92,10 +91,6 @@ block = '''    # ===== sub2-image-v2 画廊 (本地容器 127.0.0.1:3000) =====
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    location /assets/ {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_set_header Host $host;
     }
     location /api-proxy/ {
         proxy_pass http://127.0.0.1:3000;
