@@ -1,52 +1,113 @@
 #!/usr/bin/env bash
 # ============================================================
-# 外层 Nginx 反代片段 一键写入脚本 (需 root)
+# 外层 Nginx 反代 一键注入脚本 (需 root)
 # 作用: 把画廊容器(127.0.0.1:3000)挂载到 api.pansos.cn 的
-#       /gallery/ 和 /api-proxy/ 路径
+#       /gallery/  /assets/  /api-proxy/ 三个路径
+# 原理: 自动找到 server_name=api.pansos.cn 的 server 块,
+#       在该块内注入 3 段 location (先备份原配置, 幂等可重复执行)
 # 运行: sudo bash setup-nginx.sh
-# 注意: 仅适用于 Nginx 直接装在宿主机上的情况。
-#       若你的 Nginx 是 Docker 容器, 请改用手动方式(见教程)。
 # ============================================================
 set -euo pipefail
 
 DOMAIN="api.pansos.cn"
-CONF_DIR="/etc/nginx/conf.d"
-CONF="$CONF_DIR/sub2-gallery.conf"
 
-if [ ! -d "$CONF_DIR" ]; then
-  echo "❌ 未找到 $CONF_DIR, 你的 Nginx 配置目录可能不同。"
-  echo "   请参考教程手动添加反代片段。"
+echo "==> 查找 server_name=$DOMAIN 的 Nginx server 配置..."
+# 注意: 排除我们自己的片段文件, 避免误匹配
+TARGET=$(grep -rl "server_name[[:space:]].*${DOMAIN}" /etc/nginx/ 2>/dev/null \
+          | grep -v "sub2-gallery" | head -1 || true)
+
+if [ -z "$TARGET" ]; then
+  echo "❌ 未找到 server_name $DOMAIN 的 server 块。"
+  echo "   请手动把下面 3 段 location 加进该 server 块内部, 然后 nginx -s reload:"
+  cat <<'MANUAL'
+    location /gallery/ {
+        proxy_pass http://127.0.0.1:3000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /assets/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+    }
+    location /api-proxy/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+MANUAL
   exit 1
 fi
+echo "    找到: $TARGET"
 
-cat > "$CONF" <<'EOF'
-# ===== sub2-image-v2 画廊 (本地容器 127.0.0.1:3000) =====
-location /gallery/ {
-    proxy_pass http://127.0.0.1:3000/;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
+# 幂等: 已注入过就跳过, 直接校验重载
+if grep -q "sub2-image-gallery" "$TARGET"; then
+  echo "✅ 反代片段已存在, 跳过注入, 直接校验重载。"
+  nginx -t && nginx -s reload
+  echo "✅ 完成: https://$DOMAIN/gallery/"
+  exit 0
+fi
 
-location /assets/ {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_set_header Host $host;
-}
+# 备份原配置 (可回滚)
+cp "$TARGET" "${TARGET}.bak.$(date +%s)"
+echo "    已备份原配置 -> ${TARGET}.bak.<时间戳>"
 
-location /api-proxy/ {
-    proxy_pass http://127.0.0.1:3000;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 600s;
-    proxy_send_timeout 600s;
-    proxy_buffering off;
-    proxy_request_buffering off;
-}
-EOF
+# 用 python3 在 server_name 行之后注入 location 块
+# (heredoc 用引号, 保护 $host/$remote_addr 等 nginx 变量不被 bash 展开)
+python3 - "$TARGET" "$DOMAIN" <<'PYEOF'
+import sys
+path, domain = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    lines = f.readlines()
 
-echo "已写入 $CONF"
-nginx -t && nginx -s reload && echo "✅ Nginx 已重载, 访问 https://$DOMAIN/gallery/"
+block = '''    # ===== sub2-image-v2 画廊 (本地容器 127.0.0.1:3000) =====
+    location /gallery/ {
+        proxy_pass http://127.0.0.1:3000/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location /assets/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+    }
+    location /api-proxy/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+    # ===== end sub2-image-v2 =====
+'''
+
+out = []
+injected = False
+for line in lines:
+    out.append(line)
+    # 在第一个 server_name=本域名的行后插入
+    if (not injected) and ("server_name" in line) and (domain in line):
+        out.append(block)
+        injected = True
+
+with open(path, "w") as f:
+    f.writelines(out)
+print("injected location block:", injected)
+PYEOF
+
+echo "    校验并重载 Nginx..."
+nginx -t && nginx -s reload && echo "✅ Nginx 已重载: https://$DOMAIN/gallery/"
