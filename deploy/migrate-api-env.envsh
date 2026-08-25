@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Compatibility for older Docker deployments: API_URL feeds both the displayed default URL
+# and the proxy target unless the newer variables are provided.
+DOCKER_LEGACY_API_URL_USED=false
+if [ -n "$API_URL" ]; then
+    DOCKER_LEGACY_API_URL_USED=true
+fi
+
+if [ "${DEFAULT_API_URL+x}" != "x" ]; then
+    DEFAULT_API_URL=${API_URL:-https://api.openai.com/v1}
+fi
+API_PROXY_URL=${API_PROXY_URL:-${API_URL:-https://api.openai.com/v1}}
+
+SUB2API_ACCOUNT_PROXY_URL=${SUB2API_ACCOUNT_PROXY_URL:-}
+if [ -z "$SUB2API_ACCOUNT_PROXY_URL" ]; then
+    SUB2API_ACCOUNT_PROXY_URL=$(printf '%s' "$API_PROXY_URL" | sed 's|/v[0-9][0-9a-zA-Z]*$|/api/v1|')
+fi
+
+export DEFAULT_API_URL
+export API_PROXY_URL
+export SUB2API_ACCOUNT_PROXY_URL
+export DOCKER_LEGACY_API_URL_USED

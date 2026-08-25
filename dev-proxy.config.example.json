@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "prefix": "/api-proxy",
+  "target": "http://127.0.0.1:3000",
+  "accountTarget": "http://127.0.0.1:3000/api/v1",
+  "changeOrigin": true,
+  "secure": false
+}

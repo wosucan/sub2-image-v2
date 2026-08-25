@@ -1,0 +1,16 @@
+services:
+  gpt-image-playground:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    container_name: gpt_image_playground
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:80"
+    environment:
+      DEFAULT_API_URL: ""
+      API_PROXY_URL: "https://sub2.luoyv.net/v1"
+      SUB2API_ACCOUNT_BASE_URL: "/api-proxy/api/v1"
+      SUB2API_ACCOUNT_PROXY_URL: "https://sub2.luoyv.net/api/v1"
+      ENABLE_API_PROXY: "true"
+      LOCK_API_PROXY: "true"
