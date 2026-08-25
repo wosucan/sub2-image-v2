@@ -12,15 +12,25 @@ set -euo pipefail
 DOMAIN="api.pansos.cn"
 
 echo "==> 查找 server_name=$DOMAIN 的 Nginx server 配置..."
-# 优先 sites-enabled 下的活跃软链接 (nginx 实际加载); 兜底 sites-available 排除备份/临时后缀
-TARGET=$(grep -rl "server_name[[:space:]].*${DOMAIN}" /etc/nginx/sites-enabled/ 2>/dev/null | head -1 || true)
+TARGET=""
+# 方式1(最可靠): sites-available 下精确文件名匹配, 天然排除所有 .bak/.old 等后缀备份
+for cand in "/etc/nginx/sites-available/${DOMAIN}" "/etc/nginx/sites-available/${DOMAIN}.conf"; do
+  if [ -f "$cand" ] && grep -q "server_name[[:space:]].*${DOMAIN}" "$cand" 2>/dev/null; then
+    TARGET="$cand"; break
+  fi
+done
+# 方式2: sites-enabled 活跃软链接 -> 解析真实路径
 if [ -z "$TARGET" ]; then
-  TARGET=$(grep -rl "server_name[[:space:]].*${DOMAIN}" /etc/nginx/sites-available/ 2>/dev/null \
-            | grep -vE '\.(bak|old|swp|save|tmp|dist)([0-9]*)$' | head -1 || true)
+  for f in /etc/nginx/sites-enabled/*; do
+    if grep -q "server_name[[:space:]].*${DOMAIN}" "$f" 2>/dev/null; then
+      r=$(readlink -f "$f")
+      [ -f "$r" ] && TARGET="$r" && break
+    fi
+  done
 fi
+# 方式3: nginx -T 实际加载的配置文件
 if [ -z "$TARGET" ]; then
-  TARGET=$(grep -rl "server_name[[:space:]].*${DOMAIN}" /etc/nginx/ 2>/dev/null \
-            | grep -vE '\.(bak|old|swp|save|tmp|dist)([0-9]*)$' | grep -v "sub2-gallery" | head -1 || true)
+  TARGET=$(nginx -T 2>/dev/null | grep -E "^# configuration file .*${DOMAIN}" | head -1 | sed -E 's@^# configuration file (.*):@\1@')
 fi
 
 if [ -z "$TARGET" ]; then
