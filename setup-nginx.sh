@@ -91,6 +91,9 @@ block = '''    # ===== sub2-image-v2 画廊 (本地容器 127.0.0.1:3000) =====
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        # sub2api 原 server 块可能设置了 X-Frame-Options: DENY，会导致 iframe 嵌入空白。
+        # 画廊需要被同域(sub2api)嵌入，所以该 location 必须覆盖为 SAMEORIGIN。
+        add_header X-Frame-Options "SAMEORIGIN" always;
     }
     location /api-proxy/ {
         proxy_pass http://127.0.0.1:3000;
