@@ -398,6 +398,11 @@ input[type="number"] {
   min-height: 3.5rem;
 }
 
+/* 被 sub2api 面板以 iframe 嵌入时，收紧顶部高度，避免与外层导航叠加占用过多竖向空间 */
+.sub2api-embedded-gallery .safe-header-inner {
+  min-height: 3rem;
+}
+
 @media (max-width: 640px) {
   input,
   textarea,

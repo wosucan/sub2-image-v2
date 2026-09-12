@@ -4,6 +4,8 @@ import { buildSettingsFromUrlParams, clearUrlSettingParams, getExplicitUrlSettin
 import { createDefaultOpenAIProfile, hasDefaultPresetConfig, isAgentTextApiProfile, normalizeSettings } from './lib/apiProfiles'
 import { getCustomProviderConfigUrl, hasEmbeddedDefaultConfig, loadCustomProviderSettingsFromUrl, loadEmbeddedDefaultConfig } from './lib/customProviderConfigUrl'
 import { getDefaultPresetProfileId, getPresetProfileIds, isPresetConfigOnlyEnabled, setPresetConfig } from './lib/presetConfig'
+import { isSub2ApiEmbeddedMode } from './lib/embeddedMode'
+import { syncEmbeddedSub2ApiAccountFromUrl } from './lib/embeddedSub2Api'
 import { useDockerApiUrlMigrationNotice } from './hooks/useDockerApiUrlMigrationNotice'
 import type { AppSettings } from './types'
 import Header from './components/Header'
@@ -25,6 +27,7 @@ import { useGlobalClickSuppression } from './lib/clickSuppression'
 let defaultConfigImportStarted = false
 
 export default function App() {
+  const setAppMode = useStore((s) => s.setAppMode)
   const appMode = useStore((s) => s.appMode)
   const filterFavorite = useStore((s) => s.filterFavorite)
   const activeFavoriteCollectionId = useStore((s) => s.activeFavoriteCollectionId)
@@ -36,6 +39,7 @@ export default function App() {
     defaultConfigImportStarted = true
 
     const searchParams = new URLSearchParams(window.location.search)
+    const embeddedModeFromUrl = isSub2ApiEmbeddedMode(searchParams)
     const customProviderConfigUrl = getCustomProviderConfigUrl()
     const embeddedDefaultConfig = hasEmbeddedDefaultConfig()
     const loadDefaultConfig = () => embeddedDefaultConfig
@@ -63,8 +67,12 @@ export default function App() {
       window.history.replaceState(null, '', nextUrl)
     }
 
+    document.documentElement.classList.toggle('sub2api-embedded-gallery', embeddedModeFromUrl)
+
     void initStore()
       .then(async () => {
+        if (embeddedModeFromUrl) setAppMode('gallery')
+        void syncEmbeddedSub2ApiAccountFromUrl()
         const importedSettings = embeddedDefaultConfig || customProviderConfigUrl
           ? await loadDefaultConfig()
           : hasDefaultPresetConfig()
@@ -121,6 +129,12 @@ export default function App() {
           clearAppliedUrlSettings()
         })
       })
+  }, [setAppMode])
+
+  useEffect(() => {
+    return () => {
+      document.documentElement.classList.remove('sub2api-embedded-gallery')
+    }
   }, [])
 
   useEffect(() => {

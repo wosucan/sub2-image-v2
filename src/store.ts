@@ -44,6 +44,7 @@ import {
   storeImage,
   storeImageWithSize,
 } from './lib/db'
+import type { Sub2ApiApiKey, Sub2ApiAuthTokens, Sub2ApiUser } from './lib/sub2apiAccount'
 import { callImageApi } from './lib/api'
 import { callAgentConversationTitleApi, callAgentResponsesApi, callBatchImageSingle, parseBatchImageCallArguments, type AgentApiResultImage } from './lib/agentApi'
 import { buildAgentApiInput, buildAgentContinuationInput } from './lib/agentInputBuilder'
@@ -110,7 +111,86 @@ function isErrorToastTitle(title: string): boolean {
   return /(?:失败|错误|异常|报错|无法|不能|超时|中断|断开|请先|请输入|已达上限|不存在|已丢失)$/.test(title)
 }
 
-export type SettingsTab = 'general' | 'agent' | 'api' | 'data' | 'about'
+export type SettingsTab = 'general' | 'agent' | 'api' | 'account' | 'data' | 'about'
+
+export interface Sub2ApiAccountState {
+  baseUrl: string
+  tokens: Sub2ApiAuthTokens | null
+  user: Sub2ApiUser | null
+  keys: Sub2ApiApiKey[]
+  selectedKeyId: number | null
+  updatedAt?: number
+}
+
+const DEFAULT_SUB2API_ACCOUNT_STATE: Sub2ApiAccountState = {
+  baseUrl: '',
+  tokens: null,
+  user: null,
+  keys: [],
+  selectedKeyId: null,
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+}
+
+function normalizePersistedNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function normalizeSub2ApiTokens(value: unknown): Sub2ApiAuthTokens | null {
+  if (!isRecord(value) || typeof value.accessToken !== 'string' || !value.accessToken) return null
+  return {
+    accessToken: value.accessToken,
+    refreshToken: typeof value.refreshToken === 'string' ? value.refreshToken : undefined,
+    tokenType: typeof value.tokenType === 'string' ? value.tokenType : undefined,
+    expiresIn: normalizePersistedNumber(value.expiresIn),
+    expiresAt: normalizePersistedNumber(value.expiresAt),
+  }
+}
+
+function normalizeSub2ApiUser(value: unknown): Sub2ApiUser | null {
+  if (!isRecord(value)) return null
+  const id = normalizePersistedNumber(value.id)
+  const username = typeof value.username === 'string' ? value.username : ''
+  const email = typeof value.email === 'string' ? value.email : ''
+  if (id == null || (!username && !email)) return null
+  return {
+    id,
+    username,
+    email,
+    role: typeof value.role === 'string' ? value.role : undefined,
+    status: typeof value.status === 'string' ? value.status : undefined,
+    balance: normalizePersistedNumber(value.balance),
+    concurrency: normalizePersistedNumber(value.concurrency),
+    allowed_groups: Array.isArray(value.allowed_groups)
+      ? value.allowed_groups.filter((item): item is string => typeof item === 'string')
+      : undefined,
+  }
+}
+
+function normalizeSub2ApiAccountState(value: unknown, fallback = DEFAULT_SUB2API_ACCOUNT_STATE): Sub2ApiAccountState {
+  const account = isRecord(value) ? value : {}
+  return {
+    baseUrl: typeof account.baseUrl === 'string' ? account.baseUrl : fallback.baseUrl,
+    tokens: normalizeSub2ApiTokens(account.tokens) ?? fallback.tokens,
+    user: normalizeSub2ApiUser(account.user) ?? fallback.user,
+    keys: [],
+    selectedKeyId: normalizePersistedNumber(account.selectedKeyId) ?? null,
+    updatedAt: normalizePersistedNumber(account.updatedAt),
+  }
+}
+
+function getPersistableSub2ApiAccount(account: Sub2ApiAccountState): Sub2ApiAccountState {
+  return {
+    baseUrl: account.baseUrl,
+    tokens: account.tokens,
+    user: account.user,
+    keys: [],
+    selectedKeyId: account.selectedKeyId,
+    updatedAt: account.updatedAt,
+  }
+}
 
 const TIMEOUT_STREAMING_HINT = '也可尝试打开「流式传输」，并提高「请求中间步骤图像数」来维持连接。'
 const TIMEOUT_PARTIAL_IMAGES_ZERO_HINT = '官方流式接口不发送心跳，当前「请求中间步骤图像数」为 0，连接可能因无数据传输而断开。建议提高到 2 或 3。'
@@ -243,7 +323,10 @@ function getLatestAgentConversation(conversations: AgentConversation[]) {
 }
 
 export function getPersistedState(state: AppState) {
-  return createPersistedState(state, agentConversationMigrationPending && !agentConversationPersistenceReady)
+  return {
+    ...createPersistedState(state, agentConversationMigrationPending && !agentConversationPersistenceReady),
+    sub2ApiAccount: getPersistableSub2ApiAccount(state.sub2ApiAccount),
+  }
 }
 
 async function replaceStoredAgentConversations(conversations: AgentConversation[]) {
@@ -256,13 +339,18 @@ function getPersistableAgentConversation(conversation: AgentConversation): Agent
 
 function mergePersistedState(persistedState: unknown, currentState: AppState): AppState {
   const plan = normalizePersistedState(persistedState, currentState)
-  if (!plan) return currentState
+  const sub2ApiAccount = normalizeSub2ApiAccountState(
+    isRecord(persistedState) ? persistedState.sub2ApiAccount : undefined,
+    currentState.sub2ApiAccount,
+  )
+  if (!plan) return { ...currentState, sub2ApiAccount }
   if (plan.shouldMigrateAgentConversations) agentConversationMigrationPending = true
   return {
     ...currentState,
     ...plan.state,
     activeFavoriteCollectionId: null,
     favoritePickerTaskIds: null,
+    sub2ApiAccount,
   }
 }
 
@@ -392,6 +480,11 @@ interface AppState {
   supportPromptSkippedForImportedData: boolean
   setSupportPromptOpen: (v: boolean) => void
   dismissSupportPrompt: () => void
+
+  // Sub2 账号（嵌入式模式）
+  sub2ApiAccount: Sub2ApiAccountState
+  setSub2ApiAccount: (patch: Partial<Sub2ApiAccountState>) => void
+  clearSub2ApiAccount: () => void
 
   // Toast
   toast: { message: string; type: ToastType } | null
@@ -992,6 +1085,27 @@ export const useStore = create<AppState>()(
       supportPromptSkippedForImportedData: false,
       setSupportPromptOpen: (supportPromptOpen) => set({ supportPromptOpen }),
       dismissSupportPrompt: () => set({ supportPromptOpen: false, supportPromptDismissed: true }),
+
+      // Sub2 账号（嵌入式模式）
+      sub2ApiAccount: { ...DEFAULT_SUB2API_ACCOUNT_STATE },
+      setSub2ApiAccount: (patch) => set((st) => {
+        const keys = patch.keys ?? st.sub2ApiAccount.keys
+        const requestedSelectedKeyId = patch.selectedKeyId !== undefined ? patch.selectedKeyId : st.sub2ApiAccount.selectedKeyId
+        const selectedKeyId = requestedSelectedKeyId != null && keys.some((key) => key.id === requestedSelectedKeyId)
+          ? requestedSelectedKeyId
+          : (keys[0]?.id ?? null)
+        return {
+          sub2ApiAccount: {
+            ...st.sub2ApiAccount,
+            ...patch,
+            keys,
+            selectedKeyId,
+          },
+        }
+      }),
+      clearSub2ApiAccount: () => set({
+        sub2ApiAccount: { ...DEFAULT_SUB2API_ACCOUNT_STATE },
+      }),
 
       // Toast
       toast: null,

@@ -19,6 +19,14 @@ function loadDevProxyConfig() {
   }
 }
 
+function escapeProxyPrefix(prefix: string) {
+  return prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function rewriteProxyPath(prefix: string, path: string) {
+  return path.replace(new RegExp(`^${escapeProxyPrefix(prefix)}`), '') || '/'
+}
+
 async function embedDefaultConfig(value: string) {
   const source = value.trim()
   if (!source) return source
@@ -46,6 +54,8 @@ export default defineConfig(async ({ command, mode }) => {
   const defaultApiUrl = await embedDefaultConfig(process.env.VITE_DEFAULT_API_URL ?? env.VITE_DEFAULT_API_URL ?? '')
   if (defaultApiUrl.startsWith('embedded-config:')) process.env.VITE_DEFAULT_API_URL = defaultApiUrl
   const devProxyConfig = command === 'serve' ? loadDevProxyConfig() : null
+  // 账号接口走独立前缀，必须排在通配前缀之前，否则会被 /api-proxy 先匹配掉
+  const accountProxyPrefix = devProxyConfig ? `${devProxyConfig.prefix}/api/v1` : ''
 
   return {
     plugins: [react()],
@@ -59,15 +69,21 @@ export default defineConfig(async ({ command, mode }) => {
       proxy:
         devProxyConfig?.enabled
           ? {
+              ...(devProxyConfig.accountTarget
+                ? {
+                    [accountProxyPrefix]: {
+                      target: devProxyConfig.accountTarget,
+                      changeOrigin: devProxyConfig.changeOrigin,
+                      secure: devProxyConfig.secure,
+                      rewrite: (path) => rewriteProxyPath(accountProxyPrefix, path),
+                    },
+                  }
+                : {}),
               [devProxyConfig.prefix]: {
                 target: devProxyConfig.target,
                 changeOrigin: devProxyConfig.changeOrigin,
                 secure: devProxyConfig.secure,
-                rewrite: (path) =>
-                  path.replace(
-                    new RegExp(`^${devProxyConfig.prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
-                    '',
-                  ),
+                rewrite: (path) => rewriteProxyPath(devProxyConfig.prefix, path),
               },
             }
           : undefined,

@@ -1,0 +1,33 @@
+# 示例 Compose 配置（从源码构建）
+#
+# 两种用法：
+#   A. 从源码构建（本仓库）：保持 build 段，执行 docker compose up -d --build
+#   B. 使用官方预构建镜像：删除 build 段，改用
+#        image: ghcr.io/cooksleep/gpt_image_playground:<版本>
+#      —— 但官方镜像不含 Sub2 账号同步，需自行构建本仓库镜像。
+#
+# Sub2 账号同步的必要条件：
+#   1. ENABLE_API_PROXY=true
+#   2. SUB2API_ACCOUNT_BASE_URL  浏览器侧同源路径，通常固定为 /api-proxy/api/v1
+#   3. SUB2API_ACCOUNT_PROXY_URL 服务端转发目标，指向 sub2api 的面板 API
+#      —— 留空时会自动从 API_PROXY_URL 推导（把结尾的 /vN 换成 /api/v1）
+
+services:
+  gpt-image-playground:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: sub2-image-v2:local
+    container_name: gpt_image_playground
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:80"
+    environment:
+      DEFAULT_API_URL: ""
+      # 模型 / 绘图接口（OpenAI 兼容）
+      API_PROXY_URL: "https://your-sub2api.example.com/v1"
+      # sub2api 面板 API（账号与 API Key 列表）
+      SUB2API_ACCOUNT_BASE_URL: "/api-proxy/api/v1"
+      SUB2API_ACCOUNT_PROXY_URL: "https://your-sub2api.example.com/api/v1"
+      ENABLE_API_PROXY: "true"
+      LOCK_API_PROXY: "true"

@@ -4,6 +4,7 @@ export interface DevProxyConfig {
   enabled: boolean
   prefix: string
   target: string
+  accountTarget?: string
   changeOrigin: boolean
   secure: boolean
 }
@@ -51,6 +52,8 @@ export function normalizeDevProxyConfig(input: unknown): DevProxyConfig | null {
     enabled: Boolean(record.enabled),
     prefix,
     target,
+    // 账号接口（/api/v1/*）与模型接口（/v1/*）目标不同，分开配置
+    accountTarget: normalizeBaseUrl(typeof record.accountTarget === 'string' ? record.accountTarget : '') || undefined,
     changeOrigin: record.changeOrigin !== false,
     secure: Boolean(record.secure),
   }

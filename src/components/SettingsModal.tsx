@@ -6,6 +6,15 @@ import { hasActiveDataOperations } from '../lib/dataOperations'
 import { isApiProxyAvailable, isApiProxyLocked, readClientDevProxyConfig } from '../lib/devProxy'
 import { useStore, exportData, importData, clearData, type SettingsTab } from '../store'
 import {
+  fetchSub2ApiAccountSnapshot,
+  getDefaultSub2ApiAccountBaseUrl,
+  loginSub2ApiAccount,
+  loginSub2ApiAccount2FA,
+  normalizeSub2ApiAccountBaseUrl,
+  type Sub2ApiApiKey,
+} from '../lib/sub2apiAccount'
+import { isSub2ApiEmbeddedMode } from '../lib/embeddedMode'
+import {
   createDefaultOpenAIProfile,
   DEFAULT_FAL_BASE_URL,
   DEFAULT_FAL_MODEL,
@@ -53,7 +62,7 @@ import { DEFAULT_DROPDOWN_MAX_HEIGHT, getDropdownMaxHeight } from '../lib/dropdo
 import Select from './Select'
 import { Checkbox } from './Checkbox'
 import ViewportTooltip from './ViewportTooltip'
-import { ChevronDownIcon, CloseIcon, CopyIcon, PlusIcon, TrashIcon, GithubIcon, ExportIcon, ImportIcon, DragHandleIcon, LinkIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, CopyIcon, PlusIcon, TrashIcon, GithubIcon, ExportIcon, ImportIcon, DragHandleIcon, LinkIcon, RefreshIcon } from './icons'
 import { TooltipButton } from './TooltipButton'
 import GeneralSettingsTab from './settings/GeneralSettingsTab'
 import AgentSettingsTab from './settings/AgentSettingsTab'
@@ -153,6 +162,54 @@ function isProfileApiProxyEligible(settings: AppSettings, profile: ApiProfile) {
   return !isAsyncCustomProvider(customProvider)
 }
 
+function getSub2ApiKeyTail(key: string) {
+  const trimmed = key.trim()
+  if (!trimmed) return '未返回密钥'
+  return trimmed.length > 10 ? `...${trimmed.slice(-6)}` : trimmed
+}
+
+function formatSub2ApiBalance(balance?: number) {
+  return typeof balance === 'number' && Number.isFinite(balance)
+    ? `余额 ${balance.toFixed(4)}`
+    : '余额未知'
+}
+
+function formatSub2ApiKeyOptionLabel(key: Sub2ApiApiKey) {
+  const parts = [
+    key.name || `Key ${key.id}`,
+    getSub2ApiKeyTail(key.key),
+    key.status,
+    key.group?.name,
+  ].filter(Boolean)
+  return parts.join(' · ')
+}
+
+// 上游 v0.7.12 的内置供应商为 openai / sb2api-async / fal。
+// sb2api-async 走 OpenAI 兼容协议，因此与 openai 采用同一套匹配规则。
+function normalizeSub2ApiProvider(provider: ApiProfile['provider']) {
+  return provider === 'sb2api-async' ? 'openai' : provider
+}
+
+function sub2ApiKeyMatchesProvider(key: Sub2ApiApiKey, provider: ApiProfile['provider']) {
+  const normalizedProvider = normalizeSub2ApiProvider(provider)
+  const platform = key.group?.platform?.toLowerCase()
+  if (platform) {
+    if (normalizedProvider === 'openai') return /(openai|gpt|chatgpt)/i.test(platform)
+    if (normalizedProvider === 'grok') return /(grok|xai|x-ai)/i.test(platform)
+    if (normalizedProvider === 'gemini') return /(gemini|google)/i.test(platform)
+    if (normalizedProvider === 'claude') return /(claude|anthropic)/i.test(platform)
+    return false
+  }
+  const text = `${key.name || ''} ${key.group?.name || ''}`.toLowerCase()
+  const hasProviderMarker = /(openai|gpt|chatgpt|grok|xai|x-ai|gemini|google|claude|anthropic)/i.test(text)
+  if (!hasProviderMarker) return true
+  if (normalizedProvider === 'openai') return /(openai|gpt|chatgpt)/i.test(text)
+  if (normalizedProvider === 'grok') return /(grok|xai|x-ai)/i.test(text)
+  if (normalizedProvider === 'gemini') return /(gemini|google)/i.test(text)
+  if (normalizedProvider === 'claude') return /(claude|anthropic)/i.test(text)
+  return true
+}
+
 export default function SettingsModal() {
   const showSettings = useStore((s) => s.showSettings)
   const settingsTabRequest = useStore((s) => s.settingsTabRequest)
@@ -166,6 +223,9 @@ export default function SettingsModal() {
   const setReusedTaskApiProfile = useStore((s) => s.setReusedTaskApiProfile)
   const setConfirmDialog = useStore((s) => s.setConfirmDialog)
   const showToast = useStore((s) => s.showToast)
+  const sub2ApiAccount = useStore((s) => s.sub2ApiAccount)
+  const setSub2ApiAccount = useStore((s) => s.setSub2ApiAccount)
+  const clearSub2ApiAccount = useStore((s) => s.clearSub2ApiAccount)
   const hasRunningOperations = useStore((s) => hasActiveDataOperations(s.tasks, s.agentConversations))
   const importInputRef = useRef<HTMLInputElement>(null)
   const profileMenuRef = useRef<HTMLDivElement>(null)
@@ -217,6 +277,15 @@ export default function SettingsModal() {
   const profileTouchDragRef = useRef<{ id: string, startX: number, startY: number, moved: boolean } | null>(null)
   const [copyImportUrlProfile, setCopyImportUrlProfile] = useState<ApiProfile | null>(null)
   const [copyImportUrlOptions, setCopyImportUrlOptions] = useState<CopyImportUrlOptions>(readCopyImportUrlOptions)
+  const [sub2ApiBaseUrlInput, setSub2ApiBaseUrlInput] = useState(sub2ApiAccount.baseUrl || getDefaultSub2ApiAccountBaseUrl())
+  const [sub2ApiEmail, setSub2ApiEmail] = useState('')
+  const [sub2ApiPassword, setSub2ApiPassword] = useState('')
+  const [sub2ApiTotpCode, setSub2ApiTotpCode] = useState('')
+  const [sub2ApiTempToken, setSub2ApiTempToken] = useState<string | null>(null)
+  const [sub2ApiEmailMasked, setSub2ApiEmailMasked] = useState<string | null>(null)
+  const [sub2ApiLoading, setSub2ApiLoading] = useState<'login' | 'refresh' | 'apply' | null>(null)
+  const [sub2ApiError, setSub2ApiError] = useState<string | null>(null)
+  const [sub2ApiTargetProfileId, setSub2ApiTargetProfileId] = useState(draft.activeProfileId)
 
   const apiProxyConfig = readClientDevProxyConfig()
   const apiProxyAvailable = isApiProxyAvailable(apiProxyConfig)
@@ -240,6 +309,16 @@ export default function SettingsModal() {
   const activeCustomProviderAsync = isAsyncCustomProvider(activeCustomProvider)
   const apiProxyChecked = activeProfileApiProxyEligible && (apiProxyLocked || activeProfile.apiProxy)
   const apiProxyEnabled = apiProxyAvailable && activeProfileApiProxyEligible && apiProxyChecked
+  const sub2ApiTargetProfile = draft.profiles.find((profile) => profile.id === sub2ApiTargetProfileId) ?? activeProfile
+  const embeddedMode = isSub2ApiEmbeddedMode()
+  const providerMatchedSub2ApiKeys = sub2ApiAccount.keys.filter((key) => sub2ApiKeyMatchesProvider(key, sub2ApiTargetProfile.provider))
+  const selectableSub2ApiKeys = providerMatchedSub2ApiKeys.length ? providerMatchedSub2ApiKeys : sub2ApiAccount.keys
+  const selectedSub2ApiKey = selectableSub2ApiKeys.find((key) => key.id === sub2ApiAccount.selectedKeyId) ?? selectableSub2ApiKeys[0] ?? null
+  const activeProfileSub2ApiKeys = activeProfile.provider === 'fal'
+    ? []
+    : sub2ApiAccount.keys.filter((key) => sub2ApiKeyMatchesProvider(key, activeProfile.provider))
+  const activeProfileSelectedSub2ApiKey = activeProfileSub2ApiKeys.find((key) => key.key === activeProfile.apiKey) ?? null
+  const sub2ApiLoggedIn = Boolean(sub2ApiAccount.tokens?.accessToken)
   const defaultProviderOrder = ['openai', 'sb2api-async', 'fal', ...draft.customProviders.map(p => p.id)]
   const providerOrder = draft.providerOrder || defaultProviderOrder
 
@@ -310,10 +389,47 @@ export default function SettingsModal() {
   }))
 
   const wasSettingsOpenRef = useRef(false)
+  const autoRefreshedSub2ApiSessionRef = useRef(false)
+
+  const getNormalizedSub2ApiBaseUrlInput = useCallback(
+    () => normalizeSub2ApiAccountBaseUrl(sub2ApiBaseUrlInput || sub2ApiAccount.baseUrl),
+    [sub2ApiAccount.baseUrl, sub2ApiBaseUrlInput],
+  )
+
+  const refreshSub2ApiAccount = useCallback(async (
+    accessToken = sub2ApiAccount.tokens?.accessToken,
+    baseUrl = getNormalizedSub2ApiBaseUrlInput(),
+  ) => {
+    if (!accessToken) {
+      throw new Error('请先登录 sub2api 账号')
+    }
+    setSub2ApiLoading('refresh')
+    setSub2ApiError(null)
+    try {
+      const snapshot = await fetchSub2ApiAccountSnapshot({ baseUrl, accessToken })
+      setSub2ApiAccount({
+        baseUrl,
+        user: snapshot.user,
+        keys: snapshot.keys,
+        updatedAt: Date.now(),
+      })
+      setSub2ApiBaseUrlInput(baseUrl)
+      showToast(`已同步 ${snapshot.keys.length} 个 API Key`, 'success')
+      return snapshot
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setSub2ApiError(message)
+      showToast(`账号同步失败：${message}`, 'error')
+      throw err
+    } finally {
+      setSub2ApiLoading((current) => current === 'refresh' ? null : current)
+    }
+  }, [getNormalizedSub2ApiBaseUrlInput, setSub2ApiAccount, showToast, sub2ApiAccount.tokens?.accessToken])
 
   useEffect(() => {
     if (!showSettings) {
       wasSettingsOpenRef.current = false
+      autoRefreshedSub2ApiSessionRef.current = false
       return
     }
     if (wasSettingsOpenRef.current) return
@@ -335,6 +451,7 @@ export default function SettingsModal() {
     setDraft(nextDraft)
     setTimeoutInput(String(getActiveApiProfile(nextDraft).timeout))
     setAgentMaxToolRoundsInput(String(nextDraft.agentMaxToolRounds))
+    setSub2ApiTargetProfileId(nextDraft.activeProfileId)
   }, [apiProxyAvailable, apiProxyLocked, showSettings, settings, reusedTaskApiProfileId])
 
   useEffect(() => {
@@ -342,8 +459,34 @@ export default function SettingsModal() {
   }, [activeProfile.id, activeProfile.timeout])
 
   useEffect(() => {
-    if (showSettings && settingsTabRequest) setActiveTab(settingsTabRequest)
-  }, [settingsTabRequest, showSettings])
+    if (draft.profiles.some((profile) => profile.id === sub2ApiTargetProfileId)) return
+    setSub2ApiTargetProfileId(draft.activeProfileId)
+  }, [draft.activeProfileId, draft.profiles, sub2ApiTargetProfileId])
+
+  useEffect(() => {
+    if (!showSettings) return
+    setSub2ApiBaseUrlInput(sub2ApiAccount.baseUrl || getDefaultSub2ApiAccountBaseUrl())
+  }, [showSettings, sub2ApiAccount.baseUrl])
+
+  useEffect(() => {
+    if (!showSettings) return
+    if (!sub2ApiLoggedIn || sub2ApiLoading !== null) return
+    if (autoRefreshedSub2ApiSessionRef.current) return
+
+    autoRefreshedSub2ApiSessionRef.current = true
+    const accessToken = sub2ApiAccount.tokens?.accessToken
+    const baseUrl = normalizeSub2ApiAccountBaseUrl(sub2ApiAccount.baseUrl || getDefaultSub2ApiAccountBaseUrl())
+    void refreshSub2ApiAccount(accessToken, baseUrl).catch(() => {})
+  }, [refreshSub2ApiAccount, showSettings, sub2ApiAccount.baseUrl, sub2ApiAccount.tokens?.accessToken, sub2ApiLoggedIn, sub2ApiLoading])
+
+  useEffect(() => {
+    if (!showSettings || !settingsTabRequest) return
+    setActiveTab(settingsTabRequest === 'about' || (embeddedMode && settingsTabRequest === 'account') ? 'api' : settingsTabRequest)
+  }, [embeddedMode, settingsTabRequest, showSettings])
+
+  useEffect(() => {
+    if (activeTab === 'about' || (embeddedMode && activeTab === 'account')) setActiveTab('api')
+  }, [activeTab, embeddedMode])
 
   const updateProfileMenuMaxHeight = useCallback(() => {
     if (!profileMenuTriggerRef.current) return
@@ -533,6 +676,163 @@ export default function SettingsModal() {
     if (activeProfileLocked && (Object.keys(patch).length !== 1 || patch.apiKey === undefined)) return
     const nextDraft = getDraftWithActiveProfilePatch(patch)
     commitSettings(nextDraft)
+  }
+
+  const handleSub2ApiLogin = async () => {
+    const baseUrl = getNormalizedSub2ApiBaseUrlInput()
+    if (!sub2ApiEmail.trim() || !sub2ApiPassword) {
+      setSub2ApiError('请输入邮箱和密码')
+      return
+    }
+
+    setSub2ApiLoading('login')
+    setSub2ApiError(null)
+    try {
+      const loginResult = await loginSub2ApiAccount({
+        baseUrl,
+        email: sub2ApiEmail.trim(),
+        password: sub2ApiPassword,
+      })
+      if (loginResult.requires2fa) {
+        setSub2ApiTempToken(loginResult.tempToken)
+        setSub2ApiEmailMasked(loginResult.userEmailMasked ?? null)
+        showToast('请输入 2FA 验证码', 'info')
+        return
+      }
+
+      setSub2ApiAccount({
+        baseUrl,
+        tokens: loginResult.tokens,
+        user: loginResult.user,
+        updatedAt: Date.now(),
+      })
+      setSub2ApiPassword('')
+      setSub2ApiTotpCode('')
+      setSub2ApiTempToken(null)
+      setSub2ApiEmailMasked(null)
+      await refreshSub2ApiAccount(loginResult.tokens.accessToken, baseUrl)
+      autoRefreshedSub2ApiSessionRef.current = true
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setSub2ApiError(message)
+      showToast(`登录失败：${message}`, 'error')
+    } finally {
+      setSub2ApiLoading((current) => current === 'login' ? null : current)
+    }
+  }
+
+  const handleSub2Api2FALogin = async () => {
+    if (!sub2ApiTempToken) return
+    const baseUrl = getNormalizedSub2ApiBaseUrlInput()
+    if (!sub2ApiTotpCode.trim()) {
+      setSub2ApiError('请输入 2FA 验证码')
+      return
+    }
+
+    setSub2ApiLoading('login')
+    setSub2ApiError(null)
+    try {
+      const loginResult = await loginSub2ApiAccount2FA({
+        baseUrl,
+        tempToken: sub2ApiTempToken,
+        totpCode: sub2ApiTotpCode.trim(),
+      })
+      setSub2ApiAccount({
+        baseUrl,
+        tokens: loginResult.tokens,
+        user: loginResult.user,
+        updatedAt: Date.now(),
+      })
+      setSub2ApiPassword('')
+      setSub2ApiTotpCode('')
+      setSub2ApiTempToken(null)
+      setSub2ApiEmailMasked(null)
+      await refreshSub2ApiAccount(loginResult.tokens.accessToken, baseUrl)
+      autoRefreshedSub2ApiSessionRef.current = true
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      setSub2ApiError(message)
+      showToast(`2FA 登录失败：${message}`, 'error')
+    } finally {
+      setSub2ApiLoading((current) => current === 'login' ? null : current)
+    }
+  }
+
+  const applySelectedSub2ApiKeyToActiveProfile = () => {
+    const selectedKey = selectableSub2ApiKeys.find((key) => key.id === sub2ApiAccount.selectedKeyId) ?? selectableSub2ApiKeys[0]
+    if (!selectedKey) {
+      setSub2ApiError('没有可同步的 API Key')
+      return
+    }
+    if (sub2ApiTargetProfile.provider === 'fal') {
+      setSub2ApiError('目标配置是 fal.ai，不能同步 sub2api 的 OpenAI 兼容密钥')
+      return
+    }
+
+    setSub2ApiLoading('apply')
+    setSub2ApiError(null)
+    try {
+      commitSettings({
+        ...draft,
+        profiles: draft.profiles.map((profile) =>
+          profile.id === sub2ApiTargetProfile.id
+            ? {
+                ...profile,
+                name: selectedKey.name || profile.name,
+                apiKey: selectedKey.key,
+              }
+            : profile,
+        ),
+      })
+      setSub2ApiAccount({
+        selectedKeyId: selectedKey.id,
+      })
+      showToast(`已同步密钥「${selectedKey.name}」到「${sub2ApiTargetProfile.name}」`, 'success')
+    } finally {
+      setSub2ApiLoading((current) => current === 'apply' ? null : current)
+    }
+  }
+
+  // 账号里有可用密钥时，API Key 用下拉列表选择；否则回退到上游原有的手填输入框。
+  const renderActiveProfileApiKeyPicker = () => {
+    const apiKeyEmptyLabel = embeddedMode
+      ? '等待中转站同步密钥'
+      : sub2ApiLoading === 'refresh'
+        ? '正在刷新密钥列表...'
+        : '当前服务商没有可用密钥'
+    const apiKeyDescription = embeddedMode
+      ? '中转站账号已自动同步，仅可选择当前服务商匹配的密钥。'
+      : '打开设置时会自动刷新账号和密钥，仅可选择当前服务商匹配的密钥。'
+
+    return (
+      <div className="block">
+        <span className="mb-1.5 block text-sm text-gray-600 dark:text-gray-300">API Key</span>
+        <Select
+          value={activeProfileSelectedSub2ApiKey?.id ?? ''}
+          onChange={(value) => {
+            const selectedKey = activeProfileSub2ApiKeys.find((key) => key.id === Number(value))
+            if (!selectedKey) return
+            setSub2ApiAccount({ selectedKeyId: selectedKey.id })
+            updateActiveProfile({
+              apiKey: selectedKey.key,
+              name: selectedKey.name || activeProfile.name,
+            }, true)
+          }}
+          disabled={sub2ApiLoading !== null}
+          options={[
+            { label: apiKeyEmptyLabel, value: '' },
+            ...activeProfileSub2ApiKeys.map((key) => ({
+              label: formatSub2ApiKeyOptionLabel(key),
+              value: key.id,
+            })),
+          ]}
+          className="w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50"
+        />
+        <div data-selectable-text className="mt-1.5 text-xs text-gray-500 dark:text-gray-500">
+          {apiKeyDescription}
+        </div>
+      </div>
+    )
   }
 
   const handleClose = () => {
@@ -1154,6 +1454,18 @@ export default function SettingsModal() {
                 </svg>
                 API 配置
               </button>
+              {!embeddedMode && (
+                <button
+                  onClick={() => setActiveTab('account')}
+                  className={`whitespace-nowrap flex-shrink-0 flex items-center gap-2.5 px-3 py-2.5 text-sm rounded-xl transition-colors ${activeTab === 'account' ? 'bg-white dark:bg-white/[0.08] shadow-sm text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100/80 dark:hover:bg-white/[0.04]'}`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7h3a2 2 0 012 2v7a2 2 0 01-2 2h-3m-6-4l3-3m0 0l-3-3m3 3H4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5h4a2 2 0 012 2v10a2 2 0 01-2 2H9" />
+                  </svg>
+                  账号同步
+                </button>
+              )}
               <button
                 onClick={() => setActiveTab('general')}
                 className={`whitespace-nowrap flex-shrink-0 flex items-center gap-2.5 px-3 py-2.5 text-sm rounded-xl transition-colors ${activeTab === 'general' ? 'bg-white dark:bg-white/[0.08] shadow-sm text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100/80 dark:hover:bg-white/[0.04]'}`}
@@ -1503,6 +1815,7 @@ export default function SettingsModal() {
               )}
 
               {/* 5. API Key */}
+              {sub2ApiLoggedIn && activeProfileSub2ApiKeys.length > 0 ? renderActiveProfileApiKeyPicker() : (
               <div className="block">
                 <span className="mb-1.5 block text-sm text-gray-600 dark:text-gray-300">API Key</span>
                 <div className="relative">
@@ -1539,6 +1852,7 @@ export default function SettingsModal() {
                   支持通过查询参数覆盖：<code className="bg-gray-100 dark:bg-white/[0.06] px-1 py-0.5 rounded">?apiKey=</code>
                 </div>
               </div>
+              )}
 
               {/* 6. API 接口（Images/Responses） */}
               {activeProfile.provider === 'openai' && (
@@ -1774,6 +2088,208 @@ export default function SettingsModal() {
                 </label>
               )}
             </div>
+            )}
+            
+            {!embeddedMode && activeTab === 'account' && (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-white/[0.06] dark:bg-white/[0.02]">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-bold text-gray-800 dark:text-gray-100">sub2api 账号</h4>
+                      <div data-selectable-text className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                        登录后会同步用户名、余额和 API Key 列表。同步到当前配置时会同时写入密钥名称和密钥值。
+                      </div>
+                    </div>
+                    {sub2ApiLoggedIn && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearSub2ApiAccount()
+                          setSub2ApiTempToken(null)
+                          setSub2ApiEmailMasked(null)
+                          setSub2ApiTotpCode('')
+                          setSub2ApiError(null)
+                        }}
+                        className="shrink-0 rounded-lg border border-gray-200/70 px-2.5 py-1.5 text-xs text-gray-500 transition hover:bg-gray-50 hover:text-gray-700 dark:border-white/[0.08] dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-gray-200"
+                      >
+                        退出
+                      </button>
+                    )}
+                  </div>
+
+                  {sub2ApiAccount.user && (
+                    <div data-selectable-text className="mb-4 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2.5 text-xs text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300">
+                      <div className="truncate font-semibold">{sub2ApiAccount.user.username || sub2ApiAccount.user.email}</div>
+                      <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-1">
+                        <span>{formatSub2ApiBalance(sub2ApiAccount.user.balance)}</span>
+                        {sub2ApiAccount.user.email && <span className="truncate">{sub2ApiAccount.user.email}</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm text-gray-600 dark:text-gray-300">账号 API 地址</span>
+                      <input
+                        value={sub2ApiBaseUrlInput}
+                        readOnly
+                        aria-readonly="true"
+                        type="text"
+                        placeholder="/api-proxy/api/v1"
+                        className="w-full cursor-not-allowed rounded-xl border border-gray-200/70 bg-gray-50/80 px-3 py-2.5 text-sm text-gray-500 outline-none transition dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-400"
+                      />
+                      <div data-selectable-text className="mt-1.5 text-xs text-gray-500 dark:text-gray-500">
+                        本地默认走 <code className="rounded bg-gray-100 px-1 py-0.5 dark:bg-white/[0.06]">/api-proxy/api/v1</code>，避免浏览器跨域。
+                      </div>
+                    </label>
+
+                    {!sub2ApiLoggedIn && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="block">
+                          <span className="mb-1.5 block text-sm text-gray-600 dark:text-gray-300">邮箱</span>
+                          <input
+                            value={sub2ApiEmail}
+                            onChange={(e) => setSub2ApiEmail(e.target.value)}
+                            type="email"
+                            autoComplete="username"
+                            className="w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1.5 block text-sm text-gray-600 dark:text-gray-300">密码</span>
+                          <input
+                            value={sub2ApiPassword}
+                            onChange={(e) => setSub2ApiPassword(e.target.value)}
+                            type="password"
+                            autoComplete="current-password"
+                            className="w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50"
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    {sub2ApiTempToken && (
+                      <div className="rounded-xl border border-amber-200/70 bg-amber-50/80 p-3 dark:border-amber-500/20 dark:bg-amber-500/10">
+                        <label className="block">
+                          <span className="mb-1.5 block text-sm text-amber-700 dark:text-amber-300">
+                            2FA 验证码{sub2ApiEmailMasked ? `（${sub2ApiEmailMasked}）` : ''}
+                          </span>
+                          <input
+                            value={sub2ApiTotpCode}
+                            onChange={(e) => setSub2ApiTotpCode(e.target.value)}
+                            type="text"
+                            inputMode="numeric"
+                            className="w-full rounded-xl border border-amber-200/70 bg-white/70 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-amber-300 dark:border-amber-500/20 dark:bg-white/[0.04] dark:text-gray-200"
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
+                      {!sub2ApiLoggedIn && !sub2ApiTempToken && (
+                        <button
+                          type="button"
+                          onClick={() => { void handleSub2ApiLogin() }}
+                          disabled={sub2ApiLoading !== null}
+                          className="inline-flex items-center justify-center rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {sub2ApiLoading === 'login' ? '登录中...' : '登录并同步'}
+                        </button>
+                      )}
+                      {sub2ApiTempToken && (
+                        <button
+                          type="button"
+                          onClick={() => { void handleSub2Api2FALogin() }}
+                          disabled={sub2ApiLoading !== null}
+                          className="inline-flex items-center justify-center rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {sub2ApiLoading === 'login' ? '验证中...' : '提交 2FA'}
+                        </button>
+                      )}
+                      {sub2ApiLoggedIn && (
+                        <button
+                          type="button"
+                          onClick={() => { void refreshSub2ApiAccount() }}
+                          disabled={sub2ApiLoading !== null}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200/70 bg-white/70 px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:hover:bg-white/[0.06]"
+                        >
+                          <RefreshIcon className={`h-4 w-4 ${sub2ApiLoading === 'refresh' ? 'animate-spin' : ''}`} />
+                          刷新账号和密钥
+                        </button>
+                      )}
+                    </div>
+
+                    {sub2ApiError && (
+                      <div data-selectable-text className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-500 dark:bg-red-500/10 dark:text-red-300">
+                        {sub2ApiError}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-white/[0.06] dark:bg-white/[0.02]">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-bold text-gray-800 dark:text-gray-100">密钥同步</h4>
+                      <div data-selectable-text className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        选择账号里的 API Key，并同步到指定 API 配置。
+                      </div>
+                    </div>
+                    <span className="shrink-0 rounded bg-gray-100 px-2 py-1 text-[11px] text-gray-500 dark:bg-white/[0.06] dark:text-gray-400">
+                      {selectableSub2ApiKeys.length} / {sub2ApiAccount.keys.length} 个
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm text-gray-600 dark:text-gray-300">目标 API 配置</span>
+                      <Select
+                        value={sub2ApiTargetProfile.id}
+                        onChange={(value) => setSub2ApiTargetProfileId(String(value))}
+                        options={draft.profiles.map((profile) => ({
+                          label: `${getApiProviderLabel(draft, profile.provider)} · ${profile.name}`,
+                          value: profile.id,
+                        }))}
+                        className="w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50"
+                      />
+                      <div data-selectable-text className="mt-1.5 text-xs text-gray-500 dark:text-gray-500">
+                        密钥列表会优先按目标厂商名称筛选；没有匹配项时显示全部密钥。
+                      </div>
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm text-gray-600 dark:text-gray-300">选择密钥</span>
+                      <Select
+                        value={selectedSub2ApiKey?.id ?? ''}
+                        onChange={(value) => setSub2ApiAccount({ selectedKeyId: Number(value) })}
+                        disabled={!selectableSub2ApiKeys.length}
+                        options={selectableSub2ApiKeys.map((key) => ({ label: formatSub2ApiKeyOptionLabel(key), value: key.id }))}
+                        className="w-full rounded-xl border border-gray-200/70 bg-white/60 px-3 py-2.5 text-sm text-gray-700 outline-none transition focus:border-blue-300 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-200 dark:focus:border-blue-500/50"
+                      />
+                    </label>
+
+                    {selectedSub2ApiKey && (
+                      <div data-selectable-text className="rounded-xl border border-gray-200/70 bg-gray-50/80 px-3 py-2.5 text-xs text-gray-600 dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-gray-400">
+                        <div className="font-semibold text-gray-800 dark:text-gray-200">{selectedSub2ApiKey.name}</div>
+                        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                          <span>{getSub2ApiKeyTail(selectedSub2ApiKey.key)}</span>
+                          {selectedSub2ApiKey.status && <span>{selectedSub2ApiKey.status}</span>}
+                          {selectedSub2ApiKey.group?.name && <span>{selectedSub2ApiKey.group.name}</span>}
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={applySelectedSub2ApiKeyToActiveProfile}
+                      disabled={!selectedSub2ApiKey || sub2ApiLoading !== null}
+                      className="w-full rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-medium text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {sub2ApiLoading === 'apply' ? '同步中...' : `同步到「${sub2ApiTargetProfile.name}」`}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
             
             {activeTab === 'data' && (

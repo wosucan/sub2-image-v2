@@ -23,6 +23,28 @@
 
 <br>
 
+## 🍴 关于本分支：sub2-image-v2
+
+本仓库是 [CookSleep/gpt_image_playground](https://github.com/CookSleep/gpt_image_playground) 的改造分支，
+并参考了 [luoyv66/sub2-image](https://github.com/luoyv66/sub2-image) 的 Sub2 集成思路。
+
+**保留了上游的全部功能与后续新版本特性**，在此基础上增加「嵌入 sub2api 后的账号与 API Key 自动同步」：
+
+| 能力 | 说明 |
+| --- | --- |
+| 嵌入模式识别 | 识别 sub2api 追加的 `ui_mode=embedded`，自动切换到画廊模式 |
+| 令牌获取与清理 | 从 iframe URL 读取 `token`，**读完立即从地址栏抹除** |
+| **完整 Key 列表同步** | 拉取当前用户**全部** API Key，按平台自动匹配到各个配置 |
+| Key 手动切换 | 设置页可从已同步的密钥列表中，为任一配置挑选指定 Key |
+| 同源账号代理 | 容器内 Nginx 将 `/api-proxy/api/v1/` 转发到 sub2api 面板 API，规避 CORS |
+
+> ⚠️ **API Key 不要在预置配置里下发。** 预置配置会被 base64 内嵌进公开可访问的 JS 产物，
+> 等于把密钥公开发布。请让各用户通过账号同步或自行填写。
+
+详细配置见下方 [Sub2 账号同步](#-sub2-账号同步sub2api-自动获取全部-key)。
+
+<br>
+
 > 💡 **提示**：若需调用非 HTTPS 的内网或本地 HTTP API，请使用 GitHub Pages 版本或自行部署，Vercel 部署的体验版绑定的 `.dev` 域名因安全策略通常要求接口必须为 HTTPS。
 
 ---
@@ -417,6 +439,77 @@ npm run build
 构建输出的文件位于 `dist/` 目录下，可将其部署至任何静态文件服务器（如普通 Nginx、GitHub Pages、Netlify 等）。
 
 </details>
+
+---
+
+<a id="sub2-account-sync"></a>
+## 🔐 Sub2 账号同步（sub2api 自动获取全部 Key）
+
+嵌入 sub2api 的自定义菜单页面后，画廊可自动读取当前登录用户的 **sub2api 全部 API Key**，
+按平台匹配写入各个配置，用户打开即可绘图，无需手动填密钥。
+
+### 工作流程
+
+```
+sub2api 自定义菜单
+  └─ iframe URL: https://<画廊地址>/?ui_mode=embedded&token=<JWT>&user_id=...
+        ↓
+     ① 识别 ui_mode=embedded → 进入画廊模式
+     ② 读取 token → 立刻用 history.replaceState 从地址栏抹除
+     ③ 请求同源 /api-proxy/api/v1/keys?... （由容器 Nginx 转发到 sub2api 面板 API）
+     ④ 拿到全部 Key → 按 group.platform 匹配 → 写入各个 profile 的 apiKey
+     ⑤ 持久化到本地，之后打开无需重复同步
+```
+
+### 部署前提
+
+账号同步依赖同源代理，**必须**开启 API 代理：
+
+| 环境变量 | 说明 | 示例 |
+| --- | --- | --- |
+| `ENABLE_API_PROXY` | 必须为 `true`，否则整段代理配置会被入口脚本删除 | `true` |
+| `API_PROXY_URL` | 模型 / 绘图接口（OpenAI 兼容） | `https://sub2.example.com/v1` |
+| `SUB2API_ACCOUNT_BASE_URL` | 浏览器侧同源路径，一般固定此值 | `/api-proxy/api/v1` |
+| `SUB2API_ACCOUNT_PROXY_URL` | 服务端转发目标（sub2api 面板 API）。**留空时自动从 `API_PROXY_URL` 推导**（结尾 `/vN` → `/api/v1`） | `https://sub2.example.com/api/v1` |
+| `LOCK_API_PROXY` | 建议 `true`，强制走代理 | `true` |
+
+### 同源代理路由（容器内 Nginx）
+
+```nginx
+# 账号接口（面板 API），必须排在通配前缀之前
+location /api-proxy/api/v1/ {
+    limit_except GET POST OPTIONS { deny all; }
+    proxy_pass ${SUB2API_ACCOUNT_PROXY_URL}/;
+    ...
+}
+
+# 模型 / 绘图接口
+location /api-proxy/ {
+    limit_except POST OPTIONS { deny all; }
+    proxy_pass ${API_PROXY_URL}/;
+    ...
+}
+```
+
+浏览器始终只访问自己的 origin，因此**不需要任何 CORS 配置**。
+
+### sub2api 侧配置
+
+1. 管理后台 → **设置 → 常规 → 自定义菜单页面** → 新增
+2. URL 填画廊地址（若部署在子路径，**务必带尾部斜杠**，例如 `https://api.example.com/gallery/`）
+3. 保存即可，无需重启
+
+sub2api 会自动往 URL 追加 `token`、`user_id`、`theme`、`ui_mode=embedded` 等参数。
+
+### 手动切换 Key
+
+进入画廊 **设置 → 账号同步** 页，可为每个配置从已同步的密钥列表中挑选指定 Key。
+
+### 安全说明
+
+- 若 `SUB2API_ACCOUNT_PROXY_URL` 为空，入口脚本会自动移除账号代理区块，避免生成非法配置。
+- **不要**把 API Key 放进预置配置：预置内容会 base64 内嵌进公开可访问的 JS 产物。
+- 嵌入模式的 `Referrer-Policy` 建议在外层反代设为 `no-referrer`，避免 token 随 Referer 外泄。
 
 ---
 

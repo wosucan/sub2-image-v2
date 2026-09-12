@@ -19,6 +19,12 @@ function isInstalledPwa() {
   return window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true
 }
 
+function formatSub2ApiBalance(balance?: number) {
+  return typeof balance === 'number' && Number.isFinite(balance)
+    ? `余额 ${balance.toFixed(4)}`
+    : '余额未知'
+}
+
 export default function Header() {
   const appMode = useStore((s) => s.appMode)
   const setAppMode = useStore((s) => s.setAppMode)
@@ -30,6 +36,7 @@ export default function Header() {
   const filterFavorite = useStore((s) => s.filterFavorite)
   const activeFavoriteCollectionId = useStore((s) => s.activeFavoriteCollectionId)
   const activeConversation = agentConversations.find((item) => item.id === activeAgentConversationId)
+  const sub2ApiUser = useStore((s) => s.sub2ApiAccount.user)
   const favoriteCollectionTitle = useFavoriteCollectionTitle()
   const showFavoriteCollectionTitle = appMode === 'gallery' && Boolean(activeFavoriteCollectionId)
   const { hasUpdate, latestRelease, dismiss } = useVersionCheck()
@@ -185,6 +192,17 @@ export default function Header() {
                 </a>
               )}
             </h1>
+            {sub2ApiUser && (
+              <button
+                type="button"
+                onClick={() => setShowSettings(true, 'account')}
+                className="flex max-w-[220px] flex-col items-start gap-0.5 rounded-lg border border-blue-100 bg-blue-50/80 px-2 py-1 text-xs leading-tight text-blue-700 transition hover:bg-blue-100 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/15"
+                title={`sub2昵称：${sub2ApiUser.username || sub2ApiUser.email} · 余额 ${formatSub2ApiBalance(sub2ApiUser.balance)}`}
+              >
+                <span className="max-w-full truncate">sub2昵称：{sub2ApiUser.username || sub2ApiUser.email}</span>
+                <span className="text-blue-500/80 dark:text-blue-300/80">{formatSub2ApiBalance(sub2ApiUser.balance)}</span>
+              </button>
+            )}
             {appMode === 'agent' && <div className="hidden sm:flex items-center gap-1 relative">
               <button
                 ref={historyButtonRef}
