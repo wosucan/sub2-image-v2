@@ -1,6 +1,12 @@
 MIT License
 
-Copyright (c) 2026 CookSleep
+Copyright (c) 2026 盘搜API
+Copyright (c) 2026 CookSleep（上游项目 GPT Image Playground，MIT）
+Copyright (c) 2026 luoyv66（参考实现 sub2-image，MIT）
+
+本项目为二次开发分支：基座为开源项目 GPT Image Playground（MIT），
+Sub2 账号与 API Key 同步能力参考 sub2-image（MIT）。
+上游版权声明依据其 MIT 许可予以保留。
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

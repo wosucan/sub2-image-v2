@@ -1,10 +1,10 @@
 <div align="center">
 
-# 🎨 GPT Image Playground
+# 🎨 画廊-盘搜API
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/CookSleep/gpt_image_playground?style=flat-square&color=eab308)](https://github.com/CookSleep/gpt_image_playground/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/CookSleep/gpt_image_playground?style=flat-square&color=3b82f6)](https://github.com/CookSleep/gpt_image_playground/network/members)
-[![License](https://img.shields.io/badge/license-MIT-10b981?style=flat-square)](https://github.com/CookSleep/gpt_image_playground/blob/main/LICENSE)
+[![GitHub Repo stars](https://img.shields.io/github/stars/wosucan/sub2-image-v2?style=flat-square&color=eab308)](https://github.com/wosucan/sub2-image-v2/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/wosucan/sub2-image-v2?style=flat-square&color=3b82f6)](https://github.com/wosucan/sub2-image-v2/network/members)
+[![License](https://img.shields.io/badge/license-MIT-10b981?style=flat-square)](https://github.com/wosucan/sub2-image-v2/blob/HEAD/LICENSE)
 [![React](https://img.shields.io/badge/React-19-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
@@ -15,9 +15,6 @@
 
 <br>
 
-[![Vercel 在线体验](https://img.shields.io/badge/Vercel-%E5%9C%A8%E7%BA%BF%E4%BD%93%E9%AA%8C-black?style=for-the-badge&logo=vercel&logoColor=white)](https://gpt-image-playground.cooksleep.dev)
-&nbsp;&nbsp;&nbsp;
-[![GitHub Pages 在线体验](https://img.shields.io/badge/GitHub%20Pages-%E5%9C%A8%E7%BA%BF%E4%BD%93%E9%AA%8C-222222?style=for-the-badge&logo=github&logoColor=white)](https://cooksleep.github.io/gpt_image_playground)
 
 </div>
 
@@ -25,8 +22,8 @@
 
 ## 🍴 关于本分支：sub2-image-v2
 
-本仓库是 [CookSleep/gpt_image_playground](https://github.com/CookSleep/gpt_image_playground) 的改造分支，
-并参考了 [luoyv66/sub2-image](https://github.com/luoyv66/sub2-image) 的 Sub2 集成思路。
+本仓库是 **GPT Image Playground** 的改造分支，并参考了 **sub2-image** 的 Sub2 集成思路。
+两者均为 MIT 许可，完整来源与改造范围见 [UPSTREAM.md](UPSTREAM.md)。
 
 **保留了上游的全部功能与后续新版本特性**，在此基础上增加「嵌入 sub2api 后的账号与 API Key 自动同步」：
 
@@ -46,49 +43,6 @@
 <br>
 
 > 💡 **提示**：若需调用非 HTTPS 的内网或本地 HTTP API，请使用 GitHub Pages 版本或自行部署，Vercel 部署的体验版绑定的 `.dev` 域名因安全策略通常要求接口必须为 HTTPS。
-
----
-
-## ❤️ 赞助商
-
-<table>
-<tr>
-<td width="180" align="center" valign="middle">
-  <a href="https://moyuu.cc/register?aff=z95r"><img src="https://github.com/user-attachments/assets/b5b14eaa-8f24-41fd-89aa-d681400a3c84" alt="摸鱼 AI" width="150"></a>
-</td>
-<td valign="middle"><b><a href="https://moyuu.cc/register?aff=z95r">摸鱼 AI</a></b>&nbsp;，让 AI API 接入更简单。明码标价，充值 1:1，支持 GPT、Claude、Gemini 等主流模型，重新定义「便宜 · 稳定 · 高速」</td>
-</tr>
-<tr>
-<td width="180" align="center" valign="middle">
-  <a href="https://jucodex.com/register?aff=3JDW"><img src="https://github.com/user-attachments/assets/1980f1ef-d594-457d-b7e4-a0dbff467984" alt="JuCodex" width="150"></a>
-</td>
-<td valign="middle"><b><a href="https://jucodex.com/register?aff=3JDW">JuCodex</a></b>&nbsp;为企业级用户打造的高可用、低延迟、极致性价比的中转站，提供 Codex、Claude Code、Grok 等主流大模型中转服务，新用户注册送 3 元（QQ 邮箱），永久承诺 0 水 0 替、模型 100% 保真。<a href="https://image.jucodex.com">生图工作台</a></td>
-</tr>
-<tr>
-<td width="180" align="center" valign="middle">
-  <a href="https://api.muteki.site/register?aff=CookSleep&promo=CookSleep"><img src="https://github.com/user-attachments/assets/0247d44d-d76b-458b-b8f5-9714ec46e7de" alt="MaruCode" width="150"></a>
-</td>
-<td valign="middle"><b><a href="https://api.muteki.site/register?aff=CookSleep&promo=CookSleep">MaruCode</a></b>&nbsp;是一家偶尔做做慈善的小破站 API，自营号池，主要提供 Codex、Claude Code、GPT Image 等主流模型，支持 Websocket 协议，明码标价(Codex 0.25x, CC 1.5x)，透明汇率(1:1)，<a href="https://api.muteki.site/register?aff=CookSleep&promo=CookSleep">新用户注册送 2 刀</a>。<a href="https://images-2.muteki.site">生图工作台🖼️</a></td>
-</tr>
-<tr>
-<td width="180" align="center" valign="middle">
-  <a href="https://go.apimart.ai/gh-gpt_image_playground"><img src="https://github.com/user-attachments/assets/d38e62e8-55be-4b3b-84cd-b7812c35a228" alt="APIMart" width="150"></a>
-</td>
-<td valign="middle"><b><a href="https://go.apimart.ai/gh-gpt_image_playground">APIMart</a></b>&nbsp;是专注 AI 图片/视频生成的低价 API 平台，GPT-Image-2 低至 $0.006/张，1 美元可出图 160+ 张。图片、视频一套异步 API 通吃，提交任务拿 ID、回调取结果，跑批万张不超时、换模型不改代码。按量付费、无月费，通过<a href="https://go.apimart.ai/gh-gpt_image_playground">此注册链接</a>注册即可开用。</td>
-</tr>
-<tr>
-<td width="180" align="center" valign="middle">
-  <a href="https://9527.codes"><img src="https://github.com/user-attachments/assets/29eba620-e902-42f9-9c3b-2fb2d7b2e310" alt="9527 CODE" width="150"></a>
-</td>
-<td valign="middle"><b><a href="https://9527.codes">9527 CODE</a></b>&nbsp;是企业级满血 AI 中转服务平台，专注提供 Claude Code、Codex 等主流模型的高稳定中转能力，为企业级 AI 使用提供稳定、合规、高效的一站式解决方案。</td>
-</tr>
-<tr>
-<td width="180" align="center" valign="middle">
-  <a href="https://api.sublyx.org/register?aff=U62PAZERCHEA"><img src="https://github.com/user-attachments/assets/828b0b12-f07d-4408-a6d7-627056b81b76" alt="Sublyx" width="150"></a>
-</td>
-<td valign="middle"><b><a href="https://api.sublyx.org/register?aff=U62PAZERCHEA">Sublyx</a></b>&nbsp;是一家稳定高效的 AI API 聚合网关，支持 OpenAI、Claude、Grok、Codex、gpt-image-2 等主流模型，兼容 OpenAI SDK、Claude Code、Codex、Cherry Studio 等常用工具。通过<a href="https://api.sublyx.org/register?aff=U62PAZERCHEA">链接注册</a>并使用优惠码 <code>IMG2</code>，可额外领取 10 刀额度。<a href="https://img2.icedit.ai">生图工作台</a></td>
-</tr>
-</table>
 
 ---
 
@@ -236,7 +190,7 @@ VITE_DEFAULT_API_URL=https://api.openai.com/v1
 
 **初始部署**
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FCookSleep%2Fgpt_image_playground&project-name=gpt-image-playground&repository-name=gpt-image-playground)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fwosucan%2Fsub2-image-v2&project-name=gpt-image-playground&repository-name=gpt-image-playground)
 
 点击上方按钮导入仓库即可，Vercel 会自动执行构建并部署静态文件。添加或修改环境变量后需要重新部署。
 
@@ -748,36 +702,29 @@ VITE_DEFAULT_API_URL=https://example.com/gpt-image-config.json
 
 ## 📄 许可证 & 致谢
 
-本项目基于 [MIT License](LICENSE) 开源。
+本项目采用 [MIT License](LICENSE) 开源，可自由使用、修改与分发，包括商业用途。
 
-特别致谢：[LINUX DO](https://linux.do)
+### 上游与参考项目
 
-## 💜 赞助支持
+本项目是二次开发分支，保留上游全部功能，在此之上新增 sub2api 账号与 API Key 自动同步能力：
+
+| 项目 | 说明 | 许可 |
+| --- | --- | --- |
+| **GPT Image Playground** | 项目基座，提供全部图像生成与编辑能力 | MIT |
+| **sub2-image** | Sub2 账号与 API Key 同步的参考实现 | MIT |
+
+详细的改造范围、文件级变更与同步上游的方法见 [UPSTREAM.md](UPSTREAM.md)。
+
+### 致谢
+
+- 感谢上游项目 **GPT Image Playground** 的作者与所有贡献者，本项目的绝大部分能力来自他们的长期投入。
+- 感谢 **sub2-image** 的作者提供了 Sub2 嵌入与账号同步的完整设计思路。
+- 感谢所有使用、反馈与提交问题的用户。
+
+<br>
 
 <div align="center">
 
-如果这个项目对你有帮助，欢迎通过爱发电赞助支持，你的每一份鼓励都是持续更新的动力！
+如果这个项目对你有帮助，欢迎点个 ⭐ Star 支持一下。
 
-<br>
-<br>
-
-<a href="https://www.ifdian.net/a/cooksleep">
-  <img src="https://img.shields.io/badge/%E7%88%B1%E5%8F%91%E7%94%B5-%E8%B5%9E%E5%8A%A9%E4%BD%9C%E8%80%85-946ce6?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0xMiAyMS4zNWwtMS40NS0xLjMyQzUuNCAxNS4zNiAyIDEyLjI4IDIgOC41IDIgNS40MiA0LjQyIDMgNy41IDNjMS43NCAwIDMuNDEuODEgNC41IDIuMDlDMTMuMDkgMy44MSAxNC43NiAzIDE2LjUgMyAxOS41OCAzIDIyIDUuNDIgMjIgOC41YzAgMy43OC0zLjQgNi44Ni04LjU1IDExLjU0TDEyIDIxLjM1eiIvPjwvc3ZnPg==&logoColor=white" alt="爱发电赞助" />
-</a>
-
-<br>
-<br>
-
-</div>
-
-## ⭐ Star History
-
-<div align="center">
-  <a href="https://www.star-history.com/?repos=CookSleep%2Fgpt_image_playground&type=date&legend=top-left">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=CookSleep/gpt_image_playground&type=date&theme=dark&legend=top-left&sealed_token=YDhR-bhWDaCuWPSxXgtqShoQoM84wroDOtJOM_4TtQsdxIYcQoVPIykb3dHxXo__YPI7b2HlcrMitDbXkJw0dQi68bJOx5xCCqyz8qVdokdcPKMOSbNWOhsDYv6FKKQW40xKkkOqjme8AnR-T9z3i6bq83j47rR6WiNC1n6uVaVf3Ksm8JOf0y9lpXpj" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=CookSleep/gpt_image_playground&type=date&legend=top-left&sealed_token=YDhR-bhWDaCuWPSxXgtqShoQoM84wroDOtJOM_4TtQsdxIYcQoVPIykb3dHxXo__YPI7b2HlcrMitDbXkJw0dQi68bJOx5xCCqyz8qVdokdcPKMOSbNWOhsDYv6FKKQW40xKkkOqjme8AnR-T9z3i6bq83j47rR6WiNC1n6uVaVf3Ksm8JOf0y9lpXpj" />
-      <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=CookSleep/gpt_image_playground&type=date&legend=top-left&sealed_token=YDhR-bhWDaCuWPSxXgtqShoQoM84wroDOtJOM_4TtQsdxIYcQoVPIykb3dHxXo__YPI7b2HlcrMitDbXkJw0dQi68bJOx5xCCqyz8qVdokdcPKMOSbNWOhsDYv6FKKQW40xKkkOqjme8AnR-T9z3i6bq83j47rR6WiNC1n6uVaVf3Ksm8JOf0y9lpXpj" />
-    </picture>
-  </a>
 </div>

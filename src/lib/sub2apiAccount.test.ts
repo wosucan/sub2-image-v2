@@ -21,9 +21,9 @@ describe('sub2api account client', () => {
 
   it('uses a dedicated account API base URL when configured', () => {
     vi.stubEnv('VITE_API_PROXY_AVAILABLE', 'true')
-    vi.stubEnv('VITE_SUB2API_ACCOUNT_BASE_URL', 'https://sub2.luoyv.net/api/v1')
+    vi.stubEnv('VITE_SUB2API_ACCOUNT_BASE_URL', 'https://sub2.example.com/api/v1')
 
-    expect(getDefaultSub2ApiAccountBaseUrl()).toBe('https://sub2.luoyv.net/api/v1')
+    expect(getDefaultSub2ApiAccountBaseUrl()).toBe('https://sub2.example.com/api/v1')
   })
 
   it('logs in through the sub2api auth endpoint and unwraps tokens', async () => {

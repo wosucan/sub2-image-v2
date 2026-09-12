@@ -3,14 +3,23 @@
 # sub2-image-v2 画廊容器 一键部署脚本
 # 适用: 已安装 docker + docker compose 的 Linux 服务器
 # 运行: bash install-gallery.sh
+#       DOMAIN="your-domain.com" bash install-gallery.sh   # 指定域名
 # 说明: 源码克隆到 /opt/sub2-image-v2, 域名配置写入
 #       docker-compose.override.yml (git 不跟踪, 升级 pull 不会被覆盖)
+# 注意: 本脚本不含任何站点专属信息, 域名必须通过环境变量或参数传入
 # ============================================================
 set -euo pipefail
 
-DOMAIN="api.pansos.cn"
-APP_DIR="/opt/sub2-image-v2"
+# 域名必填: 未设置时报错退出, 避免误用示例值部署
+DOMAIN="${DOMAIN:-}"
+APP_DIR="${APP_DIR:-/opt/sub2-image-v2}"
 REPO="https://github.com/wosucan/sub2-image-v2.git"
+
+if [ -z "$DOMAIN" ]; then
+  echo "❌ 未指定域名。用法:"
+  echo "   DOMAIN=\"your-domain.com\" bash install-gallery.sh"
+  exit 1
+fi
 
 echo "==> [1/5] 克隆/更新源码到 $APP_DIR"
 if [ -d "$APP_DIR/.git" ]; then

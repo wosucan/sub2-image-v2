@@ -6,10 +6,11 @@
 
 | 项目 | 地址 | 许可 | 关系 |
 | --- | --- | --- | --- |
-| GPT Image Playground | https://github.com/CookSleep/gpt_image_playground | MIT | **基座**，保留其全部功能与新版本特性 |
-| sub2-image | https://github.com/luoyv66/sub2-image | MIT | **参考实现**，本分支 Sub2 集成层的设计来源 |
+| GPT Image Playground | `CookSleep/gpt_image_playground` | MIT | **基座**，保留其全部功能与新版本特性 |
+| sub2-image | `luoyv66/sub2-image` | MIT | **参考实现**，本分支 Sub2 集成层的设计来源 |
 
 - 基座版本：**v0.7.12**
+- 本分支对外名称：**画廊-盘搜API**（`@盘搜API`）
 - 参考实现的 Sub2 集成层：完整移植，并做了同源适配与「全部 Key」补全
 
 ## 改造原则

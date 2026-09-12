@@ -1,18 +1,26 @@
 #!/usr/bin/env bash
 # ============================================================
 # 外层 Nginx 反代 一键注入脚本 (需 root)
-# 作用: 把画廊容器(127.0.0.1:3000)挂载到 api.pansos.cn 的
+# 作用: 把画廊容器(127.0.0.1:3000)挂载到目标域名的
 #       /gallery/  /api-proxy/ 两个路径
-# 原理: 自动找到 server_name=api.pansos.cn 的 server 块,
+# 原理: 自动找到 server_name=<目标域名> 的 server 块,
 #       在该块内注入 2 段 location (先备份原配置, 幂等可重复执行)
 # 重要: 绝不代理 /assets/ —— 画廊以相对路径(base './')构建,
 #        其资源落在 /gallery/assets/ 下, 由 location /gallery/ 统一处理;
 #        若对外代理 /assets/ 会与 sub2api 前端资源(/assets/)冲突 → 页面空白。
-# 运行: sudo bash setup-nginx.sh
+# 运行: sudo DOMAIN="your-domain.com" bash setup-nginx.sh
+# 注意: 本脚本不含任何站点专属信息, 域名必须通过环境变量传入
 # ============================================================
 set -euo pipefail
 
-DOMAIN="api.pansos.cn"
+# 域名必填: 未设置时报错退出, 避免误改到错误的站点配置
+DOMAIN="${DOMAIN:-}"
+
+if [ -z "$DOMAIN" ]; then
+  echo "❌ 未指定域名。用法:"
+  echo "   sudo DOMAIN=\"your-domain.com\" bash setup-nginx.sh"
+  exit 1
+fi
 
 echo "==> 查找 server_name=$DOMAIN 的 Nginx server 配置..."
 TARGET=""

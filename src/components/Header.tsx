@@ -161,22 +161,22 @@ export default function Header() {
                 <>
                   <span className="min-w-0 truncate text-[17px] font-bold tracking-tight text-gray-800 dark:text-gray-100 sm:hidden" title={favoriteCollectionTitle}>{favoriteCollectionTitle}</span>
                   <a
-                    href="https://github.com/CookSleep/gpt_image_playground"
+                    href="https://github.com/wosucan/sub2-image-v2"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hidden text-lg font-bold tracking-tight text-gray-800 transition-colors hover:text-gray-600 dark:text-gray-100 dark:hover:text-gray-300 sm:inline"
                   >
-                    GPT Image Playground
+                    画廊-盘搜API
                   </a>
                 </>
               ) : (
                 <a
-                  href="https://github.com/CookSleep/gpt_image_playground"
+                  href="https://github.com/wosucan/sub2-image-v2"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[17px] sm:text-lg font-bold tracking-tight text-gray-800 dark:text-gray-100 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                 >
-                  GPT Image Playground
+                  画廊-盘搜API
                 </a>
               )}
               {hasUpdate && latestRelease && (
@@ -253,7 +253,7 @@ export default function Header() {
               </div>
             </div>
           )}
-          <div className="hidden sm:flex items-center gap-1 rounded-xl border border-gray-200 dark:border-white/[0.08] bg-gray-100/70 dark:bg-white/[0.04] p-1 mr-4">
+          <div className="app-mode-switch hidden sm:flex items-center gap-1 rounded-xl border border-gray-200 dark:border-white/[0.08] bg-gray-100/70 dark:bg-white/[0.04] p-1 mr-4">
             <button
               type="button"
               onClick={() => setAppMode('gallery')}
@@ -269,7 +269,7 @@ export default function Header() {
               Agent
             </button>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="app-header-actions flex items-center gap-1 shrink-0">
             {!isPwaInstalled && (
               <div
                 className="relative"

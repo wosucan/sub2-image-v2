@@ -403,6 +403,22 @@ input[type="number"] {
   min-height: 3rem;
 }
 
+/* 嵌入模式下，顶部右侧会被外层面板新增的标签栏遮挡，
+   因此把「模式切换」与「右侧操作区」整体左移。
+
+   说明：这里只追加 margin，不覆盖 .app-mode-switch 自身的
+   hidden / sm:flex / gap / border / bg / p-1 / mr-4 等类，
+   响应式行为与其它布局样式保持不变。
+
+   左移量 = A 的负左外边距 + B 的右外边距，需要微调时改这两个值即可。 */
+.sub2api-embedded-gallery .app-mode-switch {
+  margin-left: -0.5rem;
+}
+
+.sub2api-embedded-gallery .app-header-actions {
+  margin-right: 1rem;
+}
+
 @media (max-width: 640px) {
   input,
   textarea,
