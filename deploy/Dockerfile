@@ -36,6 +36,8 @@ ENV PREVENT_PRESET_CONFIG_DELETION=false
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY deploy/nginx.conf /etc/nginx/templates/default.conf.template
+# CORP 按请求类型自动切换的 map（必须先于 default.conf 加载）
+COPY deploy/cross-origin-resource-policy.conf /etc/nginx/conf.d/00-corp-map.conf
 COPY --chmod=755 deploy/migrate-api-env.envsh /docker-entrypoint.d/05-migrate-api-env.envsh
 COPY --chmod=755 deploy/inject-api-url.sh /docker-entrypoint.d/40-inject-api-url.sh
 

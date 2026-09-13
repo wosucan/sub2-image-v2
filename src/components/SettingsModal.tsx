@@ -485,7 +485,7 @@ export default function SettingsModal() {
   }, [embeddedMode, settingsTabRequest, showSettings])
 
   useEffect(() => {
-    if (activeTab === 'about' || (embeddedMode && activeTab === 'account')) setActiveTab('api')
+    if (embeddedMode && activeTab === 'account') setActiveTab('api')
   }, [activeTab, embeddedMode])
 
   const updateProfileMenuMaxHeight = useCallback(() => {
